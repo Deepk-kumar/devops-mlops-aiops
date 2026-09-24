@@ -1,0 +1,21 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!terraform.tfvars.example
+# Kubeconfig (secret!)
+ansible/kubeconfig
+# Python / misc
+__pycache__/
+.venv/
+.env
+ansible/inventory.openstack.ini
+# Secrets / local
+openrc.sh
+out.md
+# ML generated (Docker build me ban jata hai)
+ml/data/*.csv
+ml/models/
+.pytest_cache/

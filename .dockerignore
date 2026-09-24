@@ -1,0 +1,10 @@
+.git
+terraform
+infra
+ansible
+gitops
+**/__pycache__
+.pytest_cache
+ml/data
+ml/models
+openrc.sh

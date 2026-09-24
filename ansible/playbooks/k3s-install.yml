@@ -1,0 +1,107 @@
+---
+- name: Install single-node k3s cluster
+  hosts: k3s
+  become: true
+  vars:
+    # Khaali = latest stable. Pin karne ke liye e.g. "v1.31.4+k3s1"
+    k3s_version: ""
+    local_kubeconfig: "{{ playbook_dir }}/../kubeconfig"
+
+  tasks:
+    # NOTE: k3s_api_host inventory se aata hai (Terraform likhta hai).
+    # Play vars me isko define NAHI karte, warna wo inventory ko override kar deta hai.
+    - name: API address decide karo
+      ansible.builtin.set_fact:
+        api_host: "{{ k3s_api_host | default('127.0.0.1') }}"
+
+    - name: Base packages install karo
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+          - git
+          - jq
+          - python3-pip
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: k3s config directory
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: "0755"
+
+    # tls-san se certificate me VM ka IP jud jata hai, taaki laptop se kubectl chale
+    - name: k3s config.yaml
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        mode: "0600"
+        content: |
+          write-kubeconfig-mode: "0644"
+          tls-san:
+            - "{{ api_host }}"
+      register: k3s_config
+
+    - name: Check karo k3s pehle se installed hai ya nahi
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: k3s install karo (Traefik ingress default rakha hai)
+      ansible.builtin.shell: |
+        set -o pipefail
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        executable: /bin/bash
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
+      when: not k3s_bin.stat.exists
+
+    - name: k3s service enabled + running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: Config badla aur k3s pehle se tha to restart karo
+      ansible.builtin.systemd:
+        name: k3s
+        state: restarted
+      when: k3s_config.changed and k3s_bin.stat.exists
+
+    - name: Node Ready hone ka wait karo
+      ansible.builtin.command: k3s kubectl wait --for=condition=Ready node --all --timeout=60s
+      register: node_ready
+      retries: 10
+      delay: 10
+      until: node_ready.rc == 0
+      changed_when: false
+
+    - name: Kubeconfig apne machine par laao
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ local_kubeconfig }}"
+        flat: true
+
+    - name: Kubeconfig me server address sahi karo
+      ansible.builtin.replace:
+        path: "{{ local_kubeconfig }}"
+        regexp: 'https://127\.0\.0\.1:6443'
+        replace: "https://{{ api_host }}:6443"
+      delegate_to: localhost
+      become: false
+
+    - name: Kubeconfig permissions lock karo
+      ansible.builtin.file:
+        path: "{{ local_kubeconfig }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "k3s ready hai."
+          - "Kubeconfig: {{ local_kubeconfig }}"
+          - "API: https://{{ api_host }}:6443"

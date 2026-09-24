@@ -1,0 +1,4 @@
+# cp terraform.tfvars.example terraform.tfvars  (ye file gitignored hai)
+# minio_storage_size    = "10Gi"
+# postgres_storage_size = "5Gi"
+# argocd_chart_version  = "9.0.0"

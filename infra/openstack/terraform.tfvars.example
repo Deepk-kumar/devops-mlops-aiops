@@ -1,0 +1,11 @@
+# cp terraform.tfvars.example terraform.tfvars  (gitignored)
+vm_name              = "ml-platform"
+image_name           = "ubuntu-22.04"
+flavor_name          = "m1.xlarge"     # 4 vCPU / 16 GB
+disk_gb              = 80
+private_network      = "private"
+external_network     = "public"
+ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+ssh_private_key_path = "~/.ssh/id_ed25519"
+allowed_cidr         = "0.0.0.0/0"     # better: "YOUR.IP.ADD.RESS/32"
+# vm_password        = "..."           # optional, default: sirf SSH key
