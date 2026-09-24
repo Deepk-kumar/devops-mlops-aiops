@@ -20,3 +20,7 @@ resources:
     memory: 256Mi
   limits:
     memory: 512Mi
+
+# Prometheus Operator CRDs (Terraform monitoring module se aate hain) hone par hi render hote hain
+monitoring:
+  enabled: true

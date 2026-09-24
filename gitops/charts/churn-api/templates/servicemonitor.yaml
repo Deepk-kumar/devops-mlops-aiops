@@ -1,0 +1,16 @@
+{{- if and .Values.monitoring.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: churn-api
+  labels:
+    app: churn-api
+spec:
+  selector:
+    matchLabels:
+      app: churn-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- end }}

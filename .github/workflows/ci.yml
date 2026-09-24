@@ -3,7 +3,7 @@ name: ci
 on:
   push:
     branches: [main]
-    paths-ignore: ["gitops/**", "terraform/**", "ansible/**", "infra/**", "**.md"]
+    paths-ignore: ["gitops/**", "chaos/**", "Makefile", "terraform/**", "ansible/**", "infra/**", "**.md"]
   pull_request:
 
 env:

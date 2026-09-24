@@ -1,0 +1,52 @@
+{{- if and .Values.monitoring.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: churn-api
+  labels:
+    app: churn-api
+spec:
+  groups:
+    - name: churn-api.rules
+      rules:
+        - alert: ChurnApiDown
+          expr: absent(up{job="churn-api"} == 1)
+          for: 1m
+          labels:
+            severity: critical
+            service: churn-api
+          annotations:
+            summary: "churn-api ka koi pod scrape nahi ho raha"
+
+        - alert: ChurnApiHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(churn_api_request_latency_seconds_bucket{endpoint="/predict"}[2m]))
+            ) > 0.5
+          for: 1m
+          labels:
+            severity: warning
+            service: churn-api
+          annotations:
+            summary: "/predict ka p95 latency 500ms se upar"
+
+        - alert: ChurnApiHighErrorRate
+          expr: |
+            sum(rate(churn_api_requests_total{status=~"5.."}[2m]))
+              / sum(rate(churn_api_requests_total[2m])) > 0.05
+          for: 1m
+          labels:
+            severity: critical
+            service: churn-api
+          annotations:
+            summary: "churn-api me 5xx error rate 5% se upar"
+
+        - alert: ChurnApiPodRestarting
+          expr: increase(kube_pod_container_status_restarts_total{namespace="mlops",container="api"}[10m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+            service: churn-api
+          annotations:
+            summary: "churn-api container restart hua"
+{{- end }}

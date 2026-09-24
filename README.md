@@ -84,3 +84,18 @@ curl localhost:8000/metrics | grep churn_
 
 Endpoints: `/health`, `/ready`, `/predict`, `/metrics`, `/docs`.
 `--drift` flag se `python3 -m ml.src.generate_data --drift` drifted data banta hai (Phase 6).
+
+---
+## Phase 5: Monitoring (Prometheus, Grafana, Alertmanager, Loki)
+
+```bash
+make tf-apply          # monitoring module deploy (5-10 min)
+make grafana-ui        # http://localhost:3000  (admin / terraform -chdir=terraform output -raw grafana_password)
+make prometheus-ui     # http://localhost:9090  -> Status > Targets me churn-api UP
+make alertmanager-ui   # http://localhost:9093
+make api-forward       # terminal 1
+make traffic           # terminal 2 (dashboard me data aayega)
+```
+Dashboard "Churn API" ArgoCD se aata hai (`gitops/charts/churn-api/dashboards`).
+Alert rules: `ChurnApiDown`, `ChurnApiHighLatency`, `ChurnApiHighErrorRate`, `ChurnApiPodRestarting`.
+`make traffic-drift` drifted inputs bhejta hai (Grafana ke "Input drift signals" panel me monthly_charges upar jata dikhega).

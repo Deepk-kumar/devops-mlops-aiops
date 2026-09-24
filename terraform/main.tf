@@ -21,6 +21,11 @@ resource "random_password" "postgres" {
   special = false
 }
 
+resource "random_password" "grafana" {
+  length  = 24
+  special = false
+}
+
 # ---------- Modules ----------
 module "minio" {
   source = "./modules/minio"
@@ -47,4 +52,14 @@ module "argocd" {
 
   namespace     = kubernetes_namespace_v1.ns["argocd"].metadata[0].name
   chart_version = var.argocd_chart_version
+}
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  namespace           = kubernetes_namespace_v1.ns["monitoring"].metadata[0].name
+  grafana_password    = random_password.grafana.result
+  kps_chart_version   = var.kps_chart_version
+  loki_chart_version  = var.loki_chart_version
+  alloy_chart_version = var.alloy_chart_version
 }

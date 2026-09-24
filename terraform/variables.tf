@@ -31,3 +31,18 @@ variable "minio_chart_version" {
   type    = string
   default = null
 }
+
+variable "kps_chart_version" {
+  type    = string
+  default = null
+}
+
+variable "loki_chart_version" {
+  type    = string
+  default = null
+}
+
+variable "alloy_chart_version" {
+  type    = string
+  default = null
+}
