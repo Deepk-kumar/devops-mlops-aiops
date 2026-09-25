@@ -99,3 +99,41 @@ make traffic           # terminal 2 (dashboard me data aayega)
 Dashboard "Churn API" ArgoCD se aata hai (`gitops/charts/churn-api/dashboards`).
 Alert rules: `ChurnApiDown`, `ChurnApiHighLatency`, `ChurnApiHighErrorRate`, `ChurnApiPodRestarting`.
 `make traffic-drift` drifted inputs bhejta hai (Grafana ke "Input drift signals" panel me monthly_charges upar jata dikhega).
+
+---
+## Phase 6: Drift detection (Evidently) + Anomaly detection (Isolation Forest)
+
+```
+churn-api /predict --(background, best-effort)--> drift-detector /ingest
+drift-detector: har INTERVAL_SECONDS Evidently se reference vs live data compare karta hai
+anomaly-detector: har 30s Prometheus se rps/latency/error/cpu/memory padh kar
+                   Isolation Forest + robust z-score se anomaly score nikalta hai
+```
+
+Deploy:
+```bash
+make deploy-aiops        # ArgoCD Application banata hai (ek baar)
+kubectl -n mlops get pods -l part-of=aiops
+```
+
+Check karo:
+```bash
+make drift-forward        # terminal 1 -> localhost:8001
+make drift-status         # terminal 2 -> status JSON (rows, share, drifted_features)
+
+make anomaly-forward       # terminal 1 -> localhost:8002
+make anomaly-status        # terminal 2 -> status JSON (score, worst_feature)
+```
+
+Demo:
+```bash
+make api-forward
+make traffic-drift        # drifted inputs -> kuch minute me churn_drift_share badhta dikhega
+python3 chaos/traffic.py --slow-ms 1500   # (CHAOS_ENABLED=true chahiye) -> anomaly-detector p95_latency spike pakdega
+```
+
+Grafana me **AIOps** dashboard (drift share, per-feature drift, anomaly score/z-scores) aur naye alerts:
+`ChurnDataDrift`, `ChurnMetricAnomaly`, `AiopsDetectorStale`.
+
+CI ab do images banata hai (`churn-api`, `aiops`), sirf jo folder badla usi ka build chalega
+(`.github/workflows/ci.yml` me `paths-filter`).

@@ -9,6 +9,7 @@ Sirf standard library, kuch install nahi karna.
 """
 import argparse
 import json
+import math
 import random
 import time
 import urllib.error
@@ -17,6 +18,16 @@ import urllib.request
 CONTRACTS = ["Month-to-month", "One year", "Two year"]
 INTERNET = ["DSL", "Fiber optic", "No"]
 PAYMENT = ["Electronic check", "Mailed check", "Bank transfer", "Credit card"]
+
+
+def poisson(lam: float) -> int:
+    # Knuth: ml/src/generate_data.py (numpy Poisson) jaisa hi distribution, bina numpy ke
+    limit, k, p = math.exp(-lam), 0, 1.0
+    while True:
+        p *= random.random()
+        if p <= limit:
+            return k
+        k += 1
 
 
 def customer(drift: bool) -> dict:
@@ -28,12 +39,12 @@ def customer(drift: bool) -> dict:
         "tenure": tenure,
         "monthly_charges": round(monthly, 2),
         "total_charges": round(monthly * tenure, 2),
-        "support_tickets": min(10, int(random.expovariate(1 / (1.6 if drift else 1.0)))),
+        "support_tickets": poisson(1.6 if drift else 1.0),
         "senior_citizen": int(random.random() < 0.16),
         "contract": random.choices(CONTRACTS, [0.55, 0.21, 0.24])[0],
         "internet_service": internet,
-        "payment_method": random.choice(PAYMENT),
-        "tech_support": "No internet" if internet == "No" else random.choice(["Yes", "No"]),
+        "payment_method": random.choices(PAYMENT, [0.34, 0.23, 0.22, 0.21])[0],
+        "tech_support": "No internet" if internet == "No" else ("Yes" if random.random() < 0.4 else "No"),
     }
 
 

@@ -7,7 +7,8 @@ on:
   pull_request:
 
 env:
-  IMAGE: ghcr.io/deepk-kumar/churn-api   # GHCR ke liye lowercase zaruri
+  SERVING_IMAGE: ghcr.io/deepk-kumar/churn-api   # GHCR ke liye lowercase zaruri
+  AIOPS_IMAGE: ghcr.io/deepk-kumar/aiops
 
 jobs:
   test:
@@ -18,31 +19,45 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.txt -r aiops/requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q
 
-  build-and-deploy:
-    needs: test
-    if: github.event_name == 'push'
+  changes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write     # gitops/values.yaml update commit ke liye
-      packages: write     # GHCR push ke liye
+    outputs:
+      serving: ${{ steps.f.outputs.serving }}
+      aiops: ${{ steps.f.outputs.aiops }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            serving:
+              - 'serving/**'
+              - 'ml/**'
+              - 'requirements.txt'
+            aiops:
+              - 'aiops/**'
+              - 'ml/**'
 
-      - name: Short SHA
-        id: vars
+  build-serving:
+    needs: [test, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.serving == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # gitops values.yaml commit
+      packages: write     # GHCR push
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -50,18 +65,59 @@ jobs:
           push: true
           build-args: MODEL_VERSION=${{ steps.vars.outputs.tag }}
           tags: |
-            ${{ env.IMAGE }}:${{ steps.vars.outputs.tag }}
-            ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # GitOps: image tag manifest me likho, ArgoCD baaki kaam karega
-      - name: Update image tag in Helm values
+            ${{ env.SERVING_IMAGE }}:${{ steps.vars.outputs.tag }}
+            ${{ env.SERVING_IMAGE }}:latest
+          cache-from: type=gha,scope=serving
+          cache-to: type=gha,mode=max,scope=serving
+      - name: GitOps - image tag update
         run: |
           sed -i "s|^  tag: .*|  tag: \"${{ steps.vars.outputs.tag }}\"|" gitops/charts/churn-api/values.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add gitops/charts/churn-api/values.yaml
           git commit -m "ci: deploy churn-api ${{ steps.vars.outputs.tag }} [skip ci]" || exit 0
-          git pull --rebase origin main
-          git push origin HEAD:main
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep $((RANDOM % 5 + 2))
+          done
+          exit 1
+
+  build-aiops:
+    needs: [test, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.aiops == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: aiops/Dockerfile
+          push: true
+          tags: |
+            ${{ env.AIOPS_IMAGE }}:${{ steps.vars.outputs.tag }}
+            ${{ env.AIOPS_IMAGE }}:latest
+          cache-from: type=gha,scope=aiops
+          cache-to: type=gha,mode=max,scope=aiops
+      - name: GitOps - image tag update
+        run: |
+          sed -i "s|^  tag: .*|  tag: \"${{ steps.vars.outputs.tag }}\"|" gitops/charts/aiops/values.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gitops/charts/aiops/values.yaml
+          git commit -m "ci: deploy aiops ${{ steps.vars.outputs.tag }} [skip ci]" || exit 0
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep $((RANDOM % 5 + 2))
+          done
+          exit 1

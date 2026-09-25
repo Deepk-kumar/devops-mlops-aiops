@@ -1,0 +1,11 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiops-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  aiops.json: |-
+{{ .Files.Get "dashboards/aiops.json" | indent 4 }}
+{{- end }}

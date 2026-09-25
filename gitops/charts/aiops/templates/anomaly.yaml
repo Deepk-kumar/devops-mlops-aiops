@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anomaly-detector
+  labels:
+    app: anomaly-detector
+    part-of: aiops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anomaly-detector
+  template:
+    metadata:
+      labels:
+        app: anomaly-detector
+        part-of: aiops
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: anomaly
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["uvicorn", "aiops.anomaly.app:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PROMETHEUS_URL
+              value: {{ .Values.anomaly.prometheusUrl | quote }}
+            - name: TRAIN_MINUTES
+              value: {{ .Values.anomaly.trainMinutes | quote }}
+            - name: HOLDOUT_MINUTES
+              value: {{ .Values.anomaly.holdoutMinutes | quote }}
+            - name: MIN_TRAIN_POINTS
+              value: {{ .Values.anomaly.minTrainPoints | quote }}
+            - name: INTERVAL_SECONDS
+              value: {{ .Values.anomaly.intervalSeconds | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.anomaly.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: anomaly-detector
+  labels:
+    app: anomaly-detector
+    part-of: aiops
+spec:
+  selector:
+    app: anomaly-detector
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

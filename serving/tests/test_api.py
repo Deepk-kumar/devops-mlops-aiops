@@ -62,3 +62,44 @@ def test_metrics_exposed(client):
 
 def test_chaos_disabled_by_default(client):
     assert client.get("/chaos/error").status_code == 404
+
+
+def test_ingest_client_posts_predictions(client):
+    import http.server
+    import json
+    import threading
+    import time
+
+    from serving.app.ingest import IngestClient
+
+    received = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    ing = IngestClient(f"http://127.0.0.1:{srv.server_port}/ingest", flush_seconds=0.3)
+    ing.start()
+    client.app.state.ingest = ing
+    try:
+        client.post("/predict", json=RISKY)
+        for _ in range(30):
+            if received:
+                break
+            time.sleep(0.1)
+    finally:
+        client.app.state.ingest = None
+        ing.stop()
+        srv.shutdown()
+
+    rec = received[0]["records"][0]
+    assert rec["contract"] == "Month-to-month" and "probability" in rec and "ts" in rec

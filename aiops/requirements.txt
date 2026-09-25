@@ -1,0 +1,8 @@
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+prometheus-client==0.26.0
+evidently==0.7.23
+scikit-learn==1.8.0
+pandas==3.0.2
+numpy==2.4.4

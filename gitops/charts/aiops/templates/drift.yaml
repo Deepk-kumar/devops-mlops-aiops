@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drift-detector
+  labels:
+    app: drift-detector
+    part-of: aiops
+spec:
+  replicas: 1                # rolling window memory me hai, isliye single instance
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: drift-detector
+  template:
+    metadata:
+      labels:
+        app: drift-detector
+        part-of: aiops
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: drift
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["uvicorn", "aiops.drift.app:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: WINDOW_MINUTES
+              value: {{ .Values.drift.windowMinutes | quote }}
+            - name: MIN_ROWS
+              value: {{ .Values.drift.minRows | quote }}
+            - name: INTERVAL_SECONDS
+              value: {{ .Values.drift.intervalSeconds | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.drift.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: drift-detector
+  labels:
+    app: drift-detector
+    part-of: aiops
+spec:
+  selector:
+    app: drift-detector
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

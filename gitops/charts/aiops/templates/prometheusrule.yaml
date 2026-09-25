@@ -1,0 +1,41 @@
+{{- if and .Values.monitoring.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aiops
+  labels:
+    part-of: aiops
+spec:
+  groups:
+    - name: aiops.rules
+      rules:
+        # 9 me se 3+ features drift = ~0.33. Normal data me share <= 0.11 (calibrated)
+        - alert: ChurnDataDrift
+          expr: churn_drift_share > 0.25
+          for: 2m
+          labels:
+            severity: warning
+            service: churn-api
+            action: retrain
+          annotations:
+            summary: 'Data drift: {{ "{{ $value | humanizePercentage }}" }} features drift ho gaye'
+
+        - alert: ChurnMetricAnomaly
+          expr: churn_anomaly_detected == 1
+          for: 2m
+          labels:
+            severity: warning
+            service: churn-api
+            action: investigate
+          annotations:
+            summary: "churn-api metrics me anomaly (Grafana: AIOps dashboard me z-score dekho)"
+
+        - alert: AiopsDetectorStale
+          expr: time() - churn_drift_last_run_timestamp_seconds > 600
+          for: 5m
+          labels:
+            severity: warning
+            service: aiops
+          annotations:
+            summary: "drift-detector 10 minute se koi run nahi kar raha"
+{{- end }}

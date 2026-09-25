@@ -13,6 +13,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
+from ml.src.schema import MONTHLY_CHARGES_BUCKETS, TENURE_BUCKETS
+
+from serving.app.ingest import IngestClient
+
 # ---------------- Metrics ----------------
 REQUESTS = Counter("churn_api_requests_total", "HTTP requests", ["endpoint", "method", "status"])
 LATENCY = Histogram(
@@ -26,10 +30,8 @@ PROBABILITY = Histogram(
     "churn_prediction_probability", "Churn probability", buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 )
 # Input distribution: drift ka pehla signal
-IN_MONTHLY = Histogram(
-    "churn_input_monthly_charges", "monthly_charges inputs", buckets=(20, 40, 60, 80, 100, 120, 150, 200)
-)
-IN_TENURE = Histogram("churn_input_tenure_months", "tenure inputs", buckets=(6, 12, 24, 36, 48, 60, 72))
+IN_MONTHLY = Histogram("churn_input_monthly_charges", "monthly_charges inputs", buckets=MONTHLY_CHARGES_BUCKETS)
+IN_TENURE = Histogram("churn_input_tenure_months", "tenure inputs", buckets=TENURE_BUCKETS)
 MODEL_INFO = Gauge("churn_model_info", "Loaded model", ["version"])
 
 
@@ -63,7 +65,15 @@ async def lifespan(app: FastAPI):
         meta = json.loads((model_dir / "metrics.json").read_text())
         app.state.version = meta.get("version", "unknown")
         MODEL_INFO.labels(version=app.state.version).set(1)
+
+    # Optional: predictions drift-detector ko bhejo (env set ho tabhi)
+    ingest_url = os.getenv("DRIFT_INGEST_URL")
+    app.state.ingest = IngestClient(ingest_url) if ingest_url else None
+    if app.state.ingest:
+        app.state.ingest.start()
     yield
+    if app.state.ingest:
+        app.state.ingest.stop()
 
 
 app = FastAPI(title="Churn Prediction API", lifespan=lifespan)
@@ -106,6 +116,9 @@ def predict(customer: Customer):
     PROBABILITY.observe(proba)
     IN_MONTHLY.observe(customer.monthly_charges)
     IN_TENURE.observe(customer.tenure)
+
+    if app.state.ingest:
+        app.state.ingest.submit({**customer.model_dump(), "probability": proba, "ts": time.time()})
 
     return Prediction(churn_probability=round(proba, 4), churn_prediction=label, model_version=app.state.version)
 

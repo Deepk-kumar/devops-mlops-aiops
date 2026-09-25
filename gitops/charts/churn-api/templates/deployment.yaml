@@ -33,6 +33,10 @@ spec:
           env:
             - name: CHAOS_ENABLED
               value: {{ .Values.chaos.enabled | quote }}
+            {{- if .Values.drift.ingestUrl }}
+            - name: DRIFT_INGEST_URL
+              value: {{ .Values.drift.ingestUrl | quote }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /ready

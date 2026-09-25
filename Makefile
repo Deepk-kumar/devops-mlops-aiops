@@ -1,6 +1,6 @@
 KUBECONFIG_FILE := ansible/kubeconfig
 
-.PHONY: help infra-init infra-apply infra-destroy k3s-remote k3s tf-init tf-plan tf-apply tf-destroy status argocd-password argocd-ui minio-ui data train test deploy-app api-forward api-test grafana-ui prometheus-ui alertmanager-ui traffic traffic-drift
+.PHONY: help infra-init infra-apply infra-destroy k3s-remote k3s tf-init tf-plan tf-apply tf-destroy status argocd-password argocd-ui minio-ui data train test deploy-app api-forward api-test grafana-ui prometheus-ui alertmanager-ui traffic traffic-drift deploy-aiops drift-forward drift-status anomaly-forward anomaly-status
 
 help:
 	@echo "make k3s              - Ansible se k3s install karo"
@@ -84,3 +84,18 @@ traffic:
 
 traffic-drift:
 	python3 chaos/traffic.py --rps 5 --duration 180 --drift
+
+deploy-aiops:
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f gitops/apps/aiops.yaml
+
+drift-forward:
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n mlops port-forward svc/drift-detector 8001:8000
+
+drift-status:
+	curl -s localhost:8001/status | python3 -m json.tool
+
+anomaly-forward:
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n mlops port-forward svc/anomaly-detector 8002:8000
+
+anomaly-status:
+	curl -s localhost:8002/status | python3 -m json.tool

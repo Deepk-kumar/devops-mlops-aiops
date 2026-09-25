@@ -1,0 +1,16 @@
+{{- if and .Values.monitoring.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aiops
+  labels:
+    part-of: aiops
+spec:
+  selector:
+    matchLabels:
+      part-of: aiops
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+{{- end }}
