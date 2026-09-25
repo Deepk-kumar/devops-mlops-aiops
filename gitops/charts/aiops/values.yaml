@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/deepk-kumar/aiops
-  tag: "latest"          # CI har build par isko commit-sha se badal deta hai
+  tag: "e1cf145"
   pullPolicy: IfNotPresent
 
 drift:
